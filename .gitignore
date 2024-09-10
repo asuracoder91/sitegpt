@@ -1,0 +1,7 @@
+env/
+.env
+files/
+.cache/
+.streamlit/
+cache.db
+pages/
