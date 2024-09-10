@@ -44,6 +44,7 @@ for key, default in session_defaults.items():
 
 API_KEY_PATTERN = r"sk-.*"
 API_KEY_ERROR = "API_KEY를 입력하세요"
+INVALID_API_KEY = "유효하지 않은 API_KEY입니다"
 ENTER_URL = "URL을 입력해주세요"
 
 
@@ -92,6 +93,8 @@ def format_docs(docs):
 def save_api_key():
     if re.match(API_KEY_PATTERN, st.session_state["api_key"]):
         st.session_state["api_key_check"] = True
+    else:
+        st.error(INVALID_API_KEY)
 
 
 # url 저장 함수
@@ -217,8 +220,12 @@ answers_prompt = ChatPromptTemplate.from_template(
     Score: 5
 
     Question: How far away is the sun?
-    Answer: I don't know
+    Answer: I don't know.
     Score: 0
+    
+    Question: How fast is the light?
+    Answer: 290000km/s
+    Score: 4
 
     Your turn!
 
@@ -236,10 +243,9 @@ choose_prompt = ChatPromptTemplate.from_messages(
             """
             Use ONLY the following pre-existing answers to answer the user's question.
 
-            Use the answers that have the highest score (more helpful) and favor the most recent ones.\
-            After selecting the best answers, translate the final answer into Korean.
+            Use the answers that have the highest score (more helpful) and favor the most recent ones.
 
-            Cite the sources of the answers as they are in the original language, do not translate or change them.
+            Cite sources and return the sources of the answers as they are, do not change them.
 
             Answers: {answers}
             """,
@@ -251,11 +257,20 @@ choose_prompt = ChatPromptTemplate.from_messages(
 
 
 # 답변 생성을 위한 LLM 모델 설정
-llm = ChatOpenAI(
-    temperature=0.1,
-    model="gpt-4o-mini",
-    openai_api_key=st.session_state["api_key"],
-)
+# LLM 모델 설정
+llm = None  # 기본값 설정
+
+if st.session_state["api_key_check"]:
+    llm = ChatOpenAI(
+        temperature=0.1,
+        model="gpt-4o-mini",
+        streaming=True,
+        callbacks={
+            ChatCallbackHandler(),
+        },
+        openai_api_key=st.session_state["api_key"],
+    )
+
 
 # 대화 기록을 저장하기 위한 메모리 설정
 memory = ConversationBufferMemory(
@@ -307,7 +322,7 @@ else:
             retriever = load_website(st.session_state["url"])
             send_message("준비되었습니다. 질문해주세요", "ai", save=False)
             paint_history()
-            message = st.chat_input("Ask a question to the website.")
+            message = st.chat_input("궁긍함 사항을 질문해주세요")
             if message:
                 if re.match(API_KEY_PATTERN, st.session_state["api_key"]):
                     send_message(message, "human")
@@ -323,11 +338,7 @@ else:
                         )
 
                         def invoke_chain(question):
-                            result = chain.invoke(question)
-                            if hasattr(result, "content"):
-                                result = result.content
-                            else:
-                                st.error("AI 응답에 'content' 속성이 없습니다.")
+                            result = chain.invoke(question).content
                             memory.save_context(
                                 {"input": question},
                                 {"output": result},
@@ -341,7 +352,7 @@ else:
                         st.error(f"An error occurred: {e}")
 
                 else:
-                    message = "잘못된 API_KEY 형식입니다"
+                    message = INVALID_API_KEY
                     send_message(message, "ai")
     else:
         st.session_state["messages"] = []
