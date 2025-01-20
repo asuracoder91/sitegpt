@@ -307,6 +307,9 @@ with st.sidebar:
         st.success("URL이 저장되었습니다.")
     else:
         st.warning(ENTER_URL)
+    st.divider()
+
+    st.link_button("Github Repo 바로가기", "https://github.com/asuracoder91/sitegpt")
 
 
 if not st.session_state["api_key_check"]:
